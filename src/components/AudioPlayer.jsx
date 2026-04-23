@@ -4,39 +4,79 @@ export default function AudioPlayer() {
     const audioRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(0.5);
+    const [error, setError] = useState(false);
 
+    // Handle volume changes
     useEffect(() => {
-        // Attempt auto-play on mount
         if (audioRef.current) {
             audioRef.current.volume = volume;
-            const playPromise = audioRef.current.play();
-
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    setIsPlaying(true);
-                }).catch(error => {
-                    console.log("Auto-play blocked by browser. User interaction required.");
-                    setIsPlaying(false);
-                });
-            }
         }
+    }, [volume]);
+
+    // Initial autoplay attempt
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            audioRef.current?.play()?.catch(() => {
+                console.log("Auto-play blocked by browser. User interaction required.");
+                setIsPlaying(false);
+            });
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    // Setup audio event listeners
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const handlePlay = () => setIsPlaying(true);
+        const handlePause = () => setIsPlaying(false);
+        const handleError = () => setError(true);
+
+        audio.addEventListener('play', handlePlay);
+        audio.addEventListener('pause', handlePause);
+        audio.addEventListener('error', handleError);
+
+        return () => {
+            audio.removeEventListener('play', handlePlay);
+            audio.removeEventListener('pause', handlePause);
+            audio.removeEventListener('error', handleError);
+        };
     }, []);
 
     const togglePlay = () => {
-        if (audioRef.current.paused) {
-            audioRef.current.play();
-            setIsPlaying(true);
-        } else {
-            audioRef.current.pause();
-            setIsPlaying(false);
+        if (audioRef.current) {
+            if (audioRef.current.paused) {
+                audioRef.current.play();
+            } else {
+                audioRef.current.pause();
+            }
         }
     };
 
     const handleVolumeChange = (e) => {
-        const newVol = parseFloat(e.target.value);
-        setVolume(newVol);
-        audioRef.current.volume = newVol;
+        setVolume(parseFloat(e.target.value));
     };
+
+    if (error) {
+        return (
+            <div style={{
+                position: 'fixed',
+                bottom: '20px',
+                right: '20px',
+                background: 'rgba(0,0,0,0.8)',
+                border: '1px solid var(--color-primary)',
+                padding: '10px 15px',
+                borderRadius: '50px',
+                zIndex: 9999,
+                color: '#ff6b6b',
+                fontSize: '0.9rem'
+            }}>
+                Audio failed to load
+            </div>
+        );
+    }
 
     return (
         <div style={{
@@ -63,6 +103,8 @@ export default function AudioPlayer() {
 
             <button
                 onClick={togglePlay}
+                aria-label={isPlaying ? "Pause audio" : "Play audio"}
+                aria-pressed={isPlaying}
                 style={{
                     background: 'var(--color-primary)',
                     border: 'none',
@@ -87,6 +129,7 @@ export default function AudioPlayer() {
                 step="0.01"
                 value={volume}
                 onChange={handleVolumeChange}
+                aria-label="Volume control"
                 style={{ width: '80px', accentColor: 'var(--color-primary)' }}
             />
         </div>
